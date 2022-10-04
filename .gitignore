@@ -1,0 +1,37 @@
+# IDE
+.classpath
+.dccache
+.editorconfig
+.factorypath
+.idea
+.project
+.settings
+.vscode
+*.iml
+*.ipr
+*.iws
+*.swo
+*.swp
+bin/
+nb-configuration.xml
+src/utui/js/UserCentricts/processed/
+tsconfig.json
+
+# OSX
+.DS_Store
+
+# patch
+*.orig
+*.rej
+
+# Build
+.dccache
+.gradle
+build/*
+builds
+cdn_dist/*
+node_modules/*
+
+# Terraform
+.terraform
+*.tfstate*
