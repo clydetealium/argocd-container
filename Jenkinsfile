@@ -1,15 +1,9 @@
+String buildxContainer = 'buildx-container'
 String webhooks = 'webhooks'
 
 // Add parameters HERE.
-List customParameters = [ // <<< Local parameters specific to this individual pipeline and not included by default by the shared library parameters.
-//   string(
-//     name: 'EXAMPLE_CUSTOM_PARAM',
-//     defaultValue: 'example value',
-//     description: 'example description'
-//   ),
-]
+List customParameters = []
 
-// CICD-related library of Jenkins pipeline parameters and steps. See jenkins-shared-lib repo.
 library(
   identifier: 'jenkins-shared-lib@v6.0.3',
   retriever: modernSCM([
@@ -25,11 +19,6 @@ pipeline {
       yamlFile 'jenkins/k8s-pods.yml'
     }
   }
-
-  // DO NOT ADD NEW PARAMETERS HERE in a parameters block. They will be IGNORED.
-  // Instead, use the above customParameters list in this pipeline so they can be consumed and updated by the shared library in the 'Update Pipeline' stage.
-
-  // parameters {} // THIS WILL BE IGNORED!
 
   options {
     ansiColor('xterm')
@@ -54,8 +43,7 @@ pipeline {
 
     // Place pipeline-specific variables here.
     COMPONENT = "${env.JOB_NAME}"
-    // JFROG_CLI_OFFER_CONFIG = "${false}"  // Required if using jfrog.
-    // TF_IN_AUTOMATION = "${true}"         // Required if using terraform.
+    JFROG_CLI_OFFER_CONFIG = "${false}"
   }
 
   stages {
@@ -77,15 +65,30 @@ pipeline {
             sourceVersion.checkUpToDate()
           }
         }
+        buildName "#${env.BUILD_NUMBER}_${sourceVersion.runningOnDefaultBranch() ? 'Release' : 'Snapshot'}"
       }
     }
 
-    //
-    // Component-specific stages. See jenkins-pipeline-examples repo.
-    //
-    stage('Build and Upload') {
+    stage('Check for Artifact') {
       steps {
-        echo 'Build it upload it'
+        container(buildxContainer) {
+          script {
+            // Currently code-climate only supports amd64, so we can only include it if that is the only arch we build
+            jfrogArtifact.platforms = ['linux/amd64']
+            jfrogArtifact()
+          }
+        }
+      }
+    }
+
+    stage('Build and Publish') {
+      when { not { expression { jfrogArtifact.exists() } } }
+      steps {
+        container(buildxContainer) {
+          script {
+            jfrogArtifact.dockerBuildAndPush()
+          }
+        }
       }
     }
 
@@ -100,7 +103,7 @@ pipeline {
     always {
       container(webhooks) {
         script {
-          deploymentOrchestrator(env.ENVIRONMENT)
+          deploymentOrchestrator(env.PLATFORM_NAME)
           sourceVersion.checkUpToDate()
           webhooksHelper.post()
         }
